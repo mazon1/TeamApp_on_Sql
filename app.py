@@ -1,78 +1,88 @@
 import streamlit as st
 import sqlite3
 
-# Function to create a connection to the SQLite database
-def create_connection(db_file):
-    conn = None
-    try:
-        conn = sqlite3.connect(db_file)
-    except sqlite3.Error as e:
-        st.write(e)
-    return conn
+# Connect to SQLite database (or create it if it doesn't exist)
+conn = sqlite3.connect('team_members.db')
+c = conn.cursor()
 
-# Function to insert a new team member into the database
-def add_team_member(conn, team_member):
-    sql = ''' INSERT INTO team_members(name, project_management, public_speaking, ppt_story_dev, database_management, coding, deployment, passion, delivery_accountability)
-              VALUES(?,?,?,?,?,?,?,?,?) '''
-    cur = conn.cursor()
-    cur.execute(sql, team_member)
-    conn.commit()
-    return cur.lastrowid
+# Create table if it doesn't exist
+c.execute('''CREATE TABLE IF NOT EXISTS team_members
+             (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, project_management TEXT, public_speaking TEXT, ppt_development TEXT, database_management TEXT, coding TEXT, deployment TEXT, passion TEXT, recommended_role TEXT)''')
+conn.commit()
 
-# Function to fetch all team members from the database
-def get_all_team_members(conn):
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM team_members")
-    rows = cur.fetchall()
-    return rows
+def save_to_db(data):
+    with conn:
+        c.execute('''INSERT INTO team_members (name, project_management, public_speaking, ppt_development, database_management, coding, deployment, passion, recommended_role)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''', 
+                     (data['name'], data['project_management'], data['public_speaking'], data['ppt_development'], data['database_management'], data['coding'], data['deployment'], data['passion'], data['recommended_role']))
 
-# Function to create table if it doesn't exist
-def create_table(conn):
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS team_members
-                 (id INTEGER PRIMARY KEY,
-                  name TEXT NOT NULL,
-                  project_management TEXT,
-                  public_speaking TEXT,
-                  ppt_story_dev TEXT,
-                  database_management TEXT,
-                  coding TEXT,
-                  deployment TEXT,
-                  passion TEXT,
-                  delivery_accountability TEXT)''')
-    conn.commit()
-
-# Streamlit UI
 st.title("Team Selection App")
 
-# Create a database connection
-conn = create_connection("team_selector.db")
-create_table(conn)
+# Load and display the logo
+st.image("teamselectorapp.jpg", width=100)
 
-# Input form for team member details
-with st.form("team_member_form"):
-    name = st.text_input("Name")
-    project_management = st.selectbox("Project Management", ["Novice", "Competent", "Proficient", "Expert"])
-    public_speaking = st.selectbox("Public Speaking", ["Novice", "Competent", "Proficient", "Expert"])
-    ppt_story_dev = st.selectbox("PPT/Story Development", ["Novice", "Competent", "Proficient", "Expert"])
-    database_management = st.selectbox("Database Management", ["Novice", "Competent", "Proficient", "Expert"])
-    coding = st.selectbox("Coding", ["Novice", "Competent", "Proficient", "Expert"])
-    deployment = st.selectbox("Deployment", ["Novice", "Competent", "Proficient", "Expert"])
-    passion = st.selectbox("Passion", ["Coding", "Documentation & Research", "Presentation", "Communication"])
-    delivery_accountability = st.selectbox("Delivery Accountability", ["Coding", "Documentation & Research", "Presentation", "Communication"])
+# Input fields
+name = st.text_input("Name")
+project_management = st.selectbox("Project Management", ["Novice", "Competent", "Proficient", "Expert"])
+public_speaking = st.selectbox("Public Speaking", ["Novice", "Competent", "Proficient", "Expert"])
+ppt_development = st.selectbox("PPT/Story Development", ["Novice", "Competent", "Proficient", "Expert"])
+database_management = st.selectbox("Database Management", ["Novice", "Competent", "Proficient", "Expert"])
+coding = st.selectbox("Coding", ["Novice", "Competent", "Proficient", "Expert"])
+deployment = st.selectbox("Deployment", ["Novice", "Competent", "Proficient", "Expert"])
+passion = st.selectbox("Passion", ["Coding", "Documentation & Research", "Presentation & Communication"])
 
-    submitted = st.form_submit_button("Add Team Member")
+# Function to recommend role based on inputs
+def recommend_role(data):
+    if data["coding"] == "Expert":
+        return "Lead Developer"
+    elif data["project_management"] == "Expert":
+        return "Lead Project Manager"
+    elif data["ppt_development"] == "Expert":
+        return "Lead Presenter"
+    elif data["public_speaking"] == "Expert":
+        return "Lead Speaker"
+    elif data["database_management"] == "Expert":
+        return "Lead Database Manager"
+    elif data["deployment"] == "Expert":
+        return "Lead Deployment Specialist"
+    else:
+        return data["passion"]
 
-# Handle form submission
-if submitted:
-    with conn:
-        team_member = (name, project_management, public_speaking, ppt_story_dev, database_management, coding, deployment, passion, delivery_accountability)
-        team_member_id = add_team_member(conn, team_member)
-        st.success(f"Team member {name} added successfully!")
+# Button to save input and recommend role
+if st.button("Submit"):
+    data = {
+        "name": name,
+        "project_management": project_management,
+        "public_speaking": public_speaking,
+        "ppt_development": ppt_development,
+        "database_management": database_management,
+        "coding": coding,
+        "deployment": deployment,
+        "passion": passion,
+    }
+    recommended_role = recommend_role(data)
+    data["recommended_role"] = recommended_role
+    save_to_db(data)
+    st.success(f"Data saved! Recommended Role: {recommended_role}")
+
+# Button to recommend lead role
+if st.button("Recommend Lead Role"):
+    data = {
+        "project_management": project_management,
+        "public_speaking": public_speaking,
+        "ppt_development": ppt_development,
+        "database_management": database_management,
+        "coding": coding,
+        "deployment": deployment,
+        "passion": passion,
+    }
+    recommended_role = recommend_role(data)
+    st.write(f"Recommended Lead Role: {recommended_role}")
 
 # Display all team members
+st.subheader("All Team Members")
 with conn:
-    st.write("All Team Members")
-    team_members = get_all_team_members(conn)
-    for member in team_members:
-        st.write(member)
+    c.execute("SELECT * FROM team_members")
+    rows = c.fetchall()
+    for row in rows:
+        st.write(row)
